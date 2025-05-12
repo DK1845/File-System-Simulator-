@@ -1,82 +1,30 @@
 # file_manager.py
-from storage import save_state, load_state
-import os
 
-# Disk simulator: represents the memory blocks
+import os
+from storage import save_state, load_state
+
+# Disk simulator and file directory
 disk_size = 50
 disk = ['free'] * disk_size
-file_directory = {}  # To store file metadata
+file_directory = {}
 
-# Function to get current disk state
+# Load previously saved state, if any
+saved_data = load_state()
+if saved_data:
+    disk = saved_data["disk"]
+    file_directory = saved_data["file_directory"]
+
+# Utility functions
 def get_disk():
     return disk
 
-# Function to get free block count
 def get_free_block_count():
     return disk.count('free')
 
-# Function to get list of free blocks
 def get_free_blocks():
     return [i for i, b in enumerate(disk) if b == 'free']
 
-# Function to create a new file
-def create_file(file_name, file_size, allocation_method, file_type, file_data):
-    # Check if the file already exists
-    if file_name in file_directory:
-        return False  # File already exists
-
-    # Allocate space for the file
-    blocks = []
-    if allocation_method == 'Contiguous':
-        blocks = allocate_contiguous(file_name, file_size)
-    elif allocation_method == 'Linked':
-        blocks = allocate_linked(file_name, file_size)
-    elif allocation_method == 'Indexed':
-        index_block, data_blocks = allocate_indexed(file_name, file_size)
-        if index_block:
-            blocks = data_blocks
-
-    if not blocks:
-        return False  # No available space or failed allocation
-
-    # Store file information in the file directory
-    file_directory[file_name] = {
-        'size': file_size,
-        'method': allocation_method,
-        'blocks': blocks,
-        'type': file_type,
-        'content': file_data,
-        'index': index_block if allocation_method == 'Indexed' else None
-    }
-    return True
-
-# Function to delete a file
-def delete_file(file_name):
-    if file_name in file_directory:
-        # Free the allocated blocks
-        for block in file_directory[file_name]['blocks']:
-            disk[block] = 'free'
-        del file_directory[file_name]
-
-# Function to get all files and their information
-def get_all_files():
-    return file_directory
-
-# Function to get the content of a file
-def get_file_content(file_name):
-    if file_name in file_directory:
-        return file_directory[file_name]['content']
-    return None
-
-# Function to update the content of a file
-def update_file_content(file_name, new_content):
-    if file_name in file_directory:
-        file_directory[file_name]['content'] = new_content
-        return True
-    return False
-
 # Disk Allocation Methods
-
 def allocate_contiguous(file_name, size):
     for i in range(disk_size - size + 1):
         if all(disk[i + j] == 'free' for j in range(size)):
@@ -103,3 +51,61 @@ def allocate_indexed(file_name, size):
             disk[b] = file_name
         return index_block, data_blocks
     return None, []
+
+# Core File Operations
+def create_file(file_name, file_size, allocation_method, file_type, file_data):
+    if file_name in file_directory:
+        return False  # File already exists
+
+    blocks = []
+    index_block = None
+
+    if allocation_method == 'Contiguous':
+        blocks = allocate_contiguous(file_name, file_size)
+    elif allocation_method == 'Linked':
+        blocks = allocate_linked(file_name, file_size)
+    elif allocation_method == 'Indexed':
+        index_block, data_blocks = allocate_indexed(file_name, file_size)
+        if index_block is not None:
+            blocks = data_blocks
+
+    if not blocks:
+        return False  # Allocation failed
+
+    file_directory[file_name] = {
+        'size': file_size,
+        'method': allocation_method,
+        'blocks': blocks,
+        'type': file_type,
+        'content': file_data,
+        'index': index_block if allocation_method == 'Indexed' else None
+    }
+
+    save_state({"disk": disk, "file_directory": file_directory})
+    return True
+
+def delete_file(file_name):
+    if file_name in file_directory:
+        for block in file_directory[file_name]['blocks']:
+            disk[block] = 'free'
+        if file_directory[file_name]['method'] == 'Indexed':
+            index_block = file_directory[file_name].get('index')
+            if index_block is not None:
+                disk[index_block] = 'free'
+        del file_directory[file_name]
+        save_state({"disk": disk, "file_directory": file_directory})
+
+def get_all_files():
+    return file_directory
+
+def get_file_content(file_name):
+    if file_name in file_directory:
+        return file_directory[file_name]['content']
+    return None
+
+def update_file_content(file_name, new_content):
+    if file_name in file_directory:
+        file_directory[file_name]['content'] = new_content
+        save_state({"disk": disk, "file_directory": file_directory})
+        return True
+    return False
