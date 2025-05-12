@@ -13,5 +13,4 @@ def load_state():
     if os.path.exists(SAVE_PATH):
         with open(SAVE_PATH, 'rb') as f:
             return pickle.load(f)
-    else:
-        return None
+    return None
