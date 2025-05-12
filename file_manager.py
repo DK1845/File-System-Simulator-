@@ -1,5 +1,5 @@
 # file_manager.py
-
+from storage import save_state, load_state
 import os
 
 # Disk simulator: represents the memory blocks
