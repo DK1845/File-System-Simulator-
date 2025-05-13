@@ -1,5 +1,3 @@
-# storage.py
-
 import pickle
 import os
 

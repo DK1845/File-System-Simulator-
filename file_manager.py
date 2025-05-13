@@ -1,20 +1,15 @@
-# file_manager.py
-
-import os
 from storage import save_state, load_state
+from datetime import datetime
 
-# Disk simulator and file directory
 disk_size = 50
 disk = ['free'] * disk_size
 file_directory = {}
 
-# Load previously saved state, if any
 saved_data = load_state()
 if saved_data:
     disk = saved_data["disk"]
     file_directory = saved_data["file_directory"]
 
-# Utility functions
 def get_disk():
     return disk
 
@@ -24,7 +19,6 @@ def get_free_block_count():
 def get_free_blocks():
     return [i for i, b in enumerate(disk) if b == 'free']
 
-# Disk Allocation Methods
 def allocate_contiguous(file_name, size):
     for i in range(disk_size - size + 1):
         if all(disk[i + j] == 'free' for j in range(size)):
@@ -52,33 +46,37 @@ def allocate_indexed(file_name, size):
         return index_block, data_blocks
     return None, []
 
-# Core File Operations
-def create_file(file_name, file_size, allocation_method, file_type, file_data):
+def create_file(file_name, file_size, method, ftype, content, owner='admin'):
     if file_name in file_directory:
-        return False  # File already exists
+        return False
 
-    blocks = []
-    index_block = None
+    blocks, index_block = [], None
 
-    if allocation_method == 'Contiguous':
+    if method == 'Contiguous':
         blocks = allocate_contiguous(file_name, file_size)
-    elif allocation_method == 'Linked':
+    elif method == 'Linked':
         blocks = allocate_linked(file_name, file_size)
-    elif allocation_method == 'Indexed':
-        index_block, data_blocks = allocate_indexed(file_name, file_size)
-        if index_block is not None:
-            blocks = data_blocks
+    elif method == 'Indexed':
+        index_block, blocks = allocate_indexed(file_name, file_size)
 
     if not blocks:
-        return False  # Allocation failed
+        return False
 
     file_directory[file_name] = {
         'size': file_size,
-        'method': allocation_method,
+        'method': method,
         'blocks': blocks,
-        'type': file_type,
-        'content': file_data,
-        'index': index_block if allocation_method == 'Indexed' else None
+        'type': ftype,
+        'content': content,
+        'index': index_block if method == 'Indexed' else None,
+        'created_at': datetime.now(),
+        'last_modified': datetime.now(),
+        'owner': owner,
+        'permissions': {
+            'read': [owner],
+            'write': [owner],
+            'delete': [owner]
+        }
     }
 
     save_state({"disk": disk, "file_directory": file_directory})
@@ -99,13 +97,18 @@ def get_all_files():
     return file_directory
 
 def get_file_content(file_name):
-    if file_name in file_directory:
-        return file_directory[file_name]['content']
-    return None
+    return file_directory[file_name]['content'] if file_name in file_directory else None
 
 def update_file_content(file_name, new_content):
     if file_name in file_directory:
         file_directory[file_name]['content'] = new_content
+        file_directory[file_name]['last_modified'] = datetime.now()
         save_state({"disk": disk, "file_directory": file_directory})
         return True
+    return False
+
+def check_permission(file_name, action, user):
+    file = file_directory.get(file_name)
+    if file:
+        return user in file['permissions'].get(action, [])
     return False
